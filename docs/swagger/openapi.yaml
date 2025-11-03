@@ -1,0 +1,569 @@
+openapi: 3.0.3
+info:
+  title: FrontMate MVP API
+  version: 0.1.0
+  description: |
+    OpenAPI definition for the MVP endpoints implemented under Next.js App Router.
+    Auth model:
+    - Public endpoints: no auth, server uses service role internally
+    - Admin endpoints: Supabase Auth (RLS via cookies)
+servers:
+  - url: /
+tags:
+  - name: Public
+  - name: Internal
+  - name: Conversations
+  - name: Knowledge
+  - name: Templates
+  - name: Dashboard
+  - name: Admin
+  - name: Embed
+  - name: Auth
+  - name: User
+
+paths:
+  /api/public/messages:
+    post:
+      tags: [Public]
+      summary: Create a conversation and first user message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublicMessageRequest'
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversationId:
+                    type: string
+                    format: uuid
+        '400': { description: Bad Request }
+
+  /api/auth/user:
+    get:
+      tags: [Auth]
+      summary: Get current authenticated user and tenant
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUserResponse'
+        '401': { description: Unauthorized }
+
+  /api/user/me:
+    get:
+      tags: [User]
+      summary: Get current user's identifiers and tenant info
+      responses:
+        '200':
+          description: Self info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserMeResponse'
+        '401': { description: Unauthorized }
+
+  /api/internal/reply:
+    post:
+      tags: [Internal]
+      summary: Store assistant reply from n8n (HMAC signed)
+      parameters:
+        - in: header
+          name: x-signature
+          schema: { type: string }
+          required: true
+          description: Hex-encoded HMAC-SHA256 signature of raw body using shared secret
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InternalReplyRequest'
+      responses:
+        '200': { description: OK }
+        '401': { description: Unauthorized (invalid signature) }
+        '400': { description: Bad Request }
+
+  /api/conversations:
+    get:
+      tags: [Conversations]
+      summary: List conversations (RLS)
+      parameters:
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/ConversationStatus' }
+        - in: query
+          name: cursor
+          schema: { type: string, format: date-time }
+          description: Fetch items created before this ISO timestamp
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: List result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ConversationInboxItem' }
+        '401': { description: Unauthorized }
+
+  /api/conversations/{id}:
+    get:
+      tags: [Conversations]
+      summary: Get conversation with messages (RLS)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Conversation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Conversation'
+                  - type: object
+                    properties:
+                      messages:
+                        type: array
+                        items: { $ref: '#/components/schemas/Message' }
+        '401': { description: Unauthorized }
+        '404': { description: Not Found }
+    patch:
+      tags: [Conversations]
+      summary: Update conversation fields (RLS)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { $ref: '#/components/schemas/ConversationStatus' }
+                category: { $ref: '#/components/schemas/InquiryCategory' }
+                priority_score: { type: integer }
+      responses:
+        '200': { description: OK }
+        '401': { description: Unauthorized }
+        '400': { description: Bad Request }
+
+  /api/conversations/{id}/reply:
+    post:
+      tags: [Conversations]
+      summary: Add manual assistant reply (RLS)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string }
+      responses:
+        '200': { description: OK }
+        '401': { description: Unauthorized }
+        '400': { description: Bad Request }
+
+  /api/knowledge:
+    get:
+      tags: [Knowledge]
+      summary: List knowledge (RLS)
+      parameters:
+        - in: query
+          name: type
+          schema: { $ref: '#/components/schemas/KnowledgeType' }
+      responses:
+        '200':
+          description: List result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Knowledge' }
+        '401': { description: Unauthorized }
+    post:
+      tags: [Knowledge]
+      summary: Create knowledge (RLS)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KnowledgeCreate'
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Knowledge'
+        '401': { description: Unauthorized }
+        '400': { description: Bad Request }
+
+  /api/knowledge/{id}:
+    patch:
+      tags: [Knowledge]
+      summary: Update knowledge (RLS)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KnowledgeUpdate'
+      responses:
+        '200': { description: OK }
+        '401': { description: Unauthorized }
+        '400': { description: Bad Request }
+
+  /api/templates:
+    get:
+      tags: [Templates]
+      summary: List templates (RLS)
+      parameters:
+        - in: query
+          name: category
+          schema: { $ref: '#/components/schemas/TemplateCategory' }
+      responses:
+        '200':
+          description: List result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Template' }
+        '401': { description: Unauthorized }
+    post:
+      tags: [Templates]
+      summary: Create template (RLS)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TemplateCreate'
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Template'
+        '401': { description: Unauthorized }
+        '400': { description: Bad Request }
+
+  /api/templates/{id}:
+    patch:
+      tags: [Templates]
+      summary: Update template (RLS)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TemplateUpdate'
+      responses:
+        '200': { description: OK }
+        '401': { description: Unauthorized }
+        '400': { description: Bad Request }
+
+  /api/dashboard/summary:
+    get:
+      tags: [Dashboard]
+      summary: Dashboard summary (RLS)
+      parameters:
+        - in: query
+          name: range
+          schema:
+            type: string
+            enum: ["7d", "30d"]
+            default: "7d"
+      responses:
+        '200':
+          description: Summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardSummary'
+        '401': { description: Unauthorized }
+
+  /api/admin/test-messages:
+    post:
+      tags: [Admin]
+      summary: Create test conversation/message (RLS)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, text]
+              properties:
+                tenant_id: { type: string, format: uuid }
+                text: { type: string }
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversationId: { type: string, format: uuid }
+        '401': { description: Unauthorized }
+        '400': { description: Bad Request }
+
+  /api/admin/test-sse:
+    get:
+      tags: [Admin]
+      summary: Subscribe SSE for a test conversation
+      parameters:
+        - in: query
+          name: conversationId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: text/event-stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '400': { description: Bad Request }
+
+  /api/embed/snippet:
+    get:
+      tags: [Embed]
+      summary: Return HTML/JS embed snippet
+      parameters:
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [script, iframe]
+            default: script
+        - in: query
+          name: tenantId
+          schema: { type: string }
+      responses:
+        '200':
+          description: Snippet
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  snippet: { type: string }
+
+components:
+  schemas:
+    ConversationStatus:
+      type: string
+      enum: [open, pending, resolved, archived]
+    MessageRole:
+      type: string
+      enum: [user, assistant, system]
+    KnowledgeType:
+      type: string
+      enum: [company_info, hours, pricing, faq, other]
+    TemplateCategory:
+      type: string
+      enum: [hiring, quote, faq, sales, other]
+    InquiryCategory:
+      type: string
+      enum: [hiring, quote, faq, sales, other]
+
+    Conversation:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string, format: uuid }
+        subject: { type: string, nullable: true }
+        channel: { type: string }
+        source: { type: string, nullable: true }
+        is_test: { type: boolean }
+        category: { $ref: '#/components/schemas/InquiryCategory' }
+        priority_score: { type: integer, nullable: true }
+        status: { $ref: '#/components/schemas/ConversationStatus' }
+        meta: { type: object }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        first_user_message_at: { type: string, format: date-time, nullable: true }
+        last_user_message_at: { type: string, format: date-time, nullable: true }
+        last_assistant_message_at: { type: string, format: date-time, nullable: true }
+        last_opened_at: { type: string, format: date-time, nullable: true }
+
+    ConversationInboxItem:
+      allOf:
+        - $ref: '#/components/schemas/Conversation'
+        - type: object
+          properties:
+            is_unread: { type: boolean }
+
+    Message:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        conversation_id: { type: string, format: uuid }
+        role: { $ref: '#/components/schemas/MessageRole' }
+        content: { type: string }
+        meta: { type: object }
+        created_at: { type: string, format: date-time }
+
+    Knowledge:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/KnowledgeType' }
+        title: { type: string }
+        content: { type: string }
+        meta: { type: object }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    KnowledgeCreate:
+      type: object
+      required: [tenant_id, type, title, content]
+      properties:
+        tenant_id: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/KnowledgeType' }
+        title: { type: string }
+        content: { type: string }
+        meta: { type: object }
+
+    KnowledgeUpdate:
+      type: object
+      properties:
+        type: { $ref: '#/components/schemas/KnowledgeType' }
+        title: { type: string }
+        content: { type: string }
+        meta: { type: object }
+
+    Template:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string, format: uuid }
+        category: { $ref: '#/components/schemas/TemplateCategory' }
+        title: { type: string }
+        body: { type: string }
+        enabled: { type: boolean }
+        meta: { type: object }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    TemplateCreate:
+      type: object
+      required: [tenant_id, category, title, body]
+      properties:
+        tenant_id: { type: string, format: uuid }
+        category: { $ref: '#/components/schemas/TemplateCategory' }
+        title: { type: string }
+        body: { type: string }
+        enabled: { type: boolean }
+        meta: { type: object }
+
+    TemplateUpdate:
+      type: object
+      properties:
+        category: { $ref: '#/components/schemas/TemplateCategory' }
+        title: { type: string }
+        body: { type: string }
+        enabled: { type: boolean }
+        meta: { type: object }
+
+    DashboardSummary:
+      type: object
+      properties:
+        count_total: { type: integer }
+        count_by_category:
+          type: object
+          additionalProperties: { type: integer }
+        high_priority_rate: { type: number }
+        avg_first_reply_seconds:
+          oneOf:
+            - { type: number }
+            - { type: 'null' }
+
+    PublicMessageRequest:
+      type: object
+      required: [tenantId, text]
+      properties:
+        tenantId: { type: string, format: uuid }
+        text: { type: string }
+        meta:
+          type: object
+          description: Optional metadata (utm_*, topic). IP/UA are added server-side
+
+    InternalReplyRequest:
+      type: object
+      required: [conversationId, text]
+      properties:
+        conversationId: { type: string, format: uuid }
+        text: { type: string }
+        category: { $ref: '#/components/schemas/InquiryCategory' }
+        priority_score: { type: integer }
+    AuthUserResponse:
+      type: object
+      properties:
+        user:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string }
+            email: { type: string, nullable: true }
+        tenant:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string, nullable: true }
+    UserMeResponse:
+      type: object
+      properties:
+        userId: { type: string, description: 'Supabase auth.users UUID' }
+        displayName: { type: string, nullable: true }
+        tenantId: { type: string, format: uuid, nullable: true }
+        tenantName: { type: string, nullable: true }

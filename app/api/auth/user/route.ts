@@ -27,6 +27,17 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   if (!user) return NextResponse.json({ user: null }, { status: 401 })
-  return NextResponse.json({ user })
-}
 
+  // Fetch tenant info for the logged-in user (first tenant if multiple)
+  const { data: memberships } = await supabase
+    .from('tenant_members')
+    .select('tenant_id, tenants(name)')
+    .eq('user_id', user.id)
+    .limit(1)
+
+  const tenant = memberships?.[0]
+    ? { id: memberships[0].tenant_id as string, name: (memberships[0] as any).tenants?.name as string | null }
+    : null
+
+  return NextResponse.json({ user, tenant })
+}

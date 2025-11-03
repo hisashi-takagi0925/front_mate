@@ -17,7 +17,8 @@
   --accent-foreground: #111827;
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
-  --border: #e5e7eb;
+  /* Gray-600 for all rule/border lines */
+  --border: #4b5563;
   --input: #e5e7eb;
   --ring: #111827;
   --radius: 0.5rem;
@@ -65,10 +66,56 @@
     --accent-foreground: #e5e7eb;
     --destructive: #b91c1c;
     --destructive-foreground: #f9fafb;
-    --border: #1f2937;
+    /* Keep borders consistent across themes */
+    --border: #4b5563;
     --input: #1f2937;
     --ring: #e5e7eb;
   }
+}
+
+/* Manual override: force theme via class on <html> */
+html.light {
+  --background: #ffffff;
+  --foreground: #171717;
+  --card: #ffffff;
+  --card-foreground: #171717;
+  --popover: #ffffff;
+  --popover-foreground: #171717;
+  --primary: #111827;
+  --primary-foreground: #f9fafb;
+  --secondary: #f3f4f6;
+  --secondary-foreground: #111827;
+  --muted: #f3f4f6;
+  --muted-foreground: #6b7280;
+  --accent: #f3f4f6;
+  --accent-foreground: #111827;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #4b5563;
+  --input: #e5e7eb;
+  --ring: #111827;
+}
+
+html.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --card: #0a0a0a;
+  --card-foreground: #ededed;
+  --popover: #0a0a0a;
+  --popover-foreground: #ededed;
+  --primary: #f3f4f6;
+  --primary-foreground: #0a0a0a;
+  --secondary: #0f0f10;
+  --secondary-foreground: #e5e7eb;
+  --muted: #0f0f10;
+  --muted-foreground: #9ca3af;
+  --accent: #0f0f10;
+  --accent-foreground: #e5e7eb;
+  --destructive: #b91c1c;
+  --destructive-foreground: #f9fafb;
+  --border: #4b5563;
+  --input: #1f2937;
+  --ring: #e5e7eb;
 }
 
 body {
